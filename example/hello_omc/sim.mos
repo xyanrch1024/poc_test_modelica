@@ -1,0 +1,6 @@
+// OpenModelica 仿真脚本（对照编译用）
+loadFile("hello.mo");
+getErrorString();
+simulate(Hello, startTime=0, stopTime=1, numberOfIntervals=10, outputFormat="csv");
+getErrorString();
+exit();

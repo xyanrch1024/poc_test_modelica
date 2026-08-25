@@ -1,0 +1,14 @@
+{"format":"Transformational debugger info","version":1,
+"info":{"name":"Hello","description":""},
+"variables":{
+"x":{"comment":"","kind":"state","type":"Real","unit":"","displayUnit":"","source":{"info":{"file":"/home/wsl-ubuntu-1/projects/pocmodelica/example/hello_omc/hello.mo","lineStart":2,"lineEnd":2,"colStart":3,"colEnd":34}},"index":0},
+"der(x)":{"comment":"","kind":"derivative","type":"Real","unit":"","displayUnit":"","source":{"info":{"file":"/home/wsl-ubuntu-1/projects/pocmodelica/example/hello_omc/hello.mo","lineStart":2,"lineEnd":2,"colStart":3,"colEnd":34}},"index":1}
+},
+"equations":[{"eqIndex":0,"tag":"dummy"},
+{"eqIndex":1,"tag":"alias","equation":[3],"section":"initial"},
+{"eqIndex":2,"section":"initial","tag":"assign","defines":["x"],"uses":["$START.x"],"equation":["$START.x"],"source":{"info":{"file":"","lineStart":0,"lineEnd":0,"colStart":0,"colEnd":0}}},
+{"eqIndex":3,"section":"regular","tag":"assign","defines":["der(x)"],"uses":[],"equation":["1.0"],"source":{"info":{"file":"/home/wsl-ubuntu-1/projects/pocmodelica/example/hello_omc/hello.mo","lineStart":4,"lineEnd":4,"colStart":3,"colEnd":13}}}
+],
+"functions":[
+]
+}

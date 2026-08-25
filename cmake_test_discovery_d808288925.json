@@ -1,0 +1,28 @@
+{
+  "tests": 2,
+  "name": "AllTests",
+  "testsuites": [
+    {
+      "name": "GoldenCooling",
+      "tests": 1,
+      "testsuite": [
+        {
+          "name": "GeneratedProjectMatchesBaselineByteForByte",
+          "file": "\/home\/wsl-ubuntu-1\/projects\/pocmodelica\/tests\/golden\/test_golden_cooling.cpp",
+          "line": 40
+        }
+      ]
+    },
+    {
+      "name": "GoldenPlot",
+      "tests": 1,
+      "testsuite": [
+        {
+          "name": "MatchesBaselineByteForByte",
+          "file": "\/home\/wsl-ubuntu-1\/projects\/pocmodelica\/tests\/golden\/test_golden_plot.cpp",
+          "line": 26
+        }
+      ]
+    }
+  ]
+}

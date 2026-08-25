@@ -1,0 +1,23 @@
+# 回归用例清单：<CaseName> <modelPath> <referenceCsv> [tol_rel] [tol_abs]
+# 参考文件由 tools/regression/fetch_reference.py 在装有 OpenModelica 的环境生成。
+# 参考缺失的用例在回归运行中记为 SKIP(no-reference)（不失败）。
+Case01Decay case_01_decay.mo ../../references/Case01Decay_res.csv
+Case02Cooling case_02_cooling.mo ../../references/Case02Cooling_res.csv
+Case03Oscillator case_03_oscillator.mo ../../references/Case03Oscillator_res.csv
+Case04LinearSource case_04_linear_source.mo ../../references/Case04LinearSource_res.csv
+AlgChain case_05_alg_chain.mo ../../references/AlgChain_res.csv
+Case06BoolInt case_06_bool_int.mo ../../references/Case06BoolInt_res.csv
+Case07AbsMin case_07_abs_min.mo ../../references/Case07AbsMin_res.csv
+Case08Trig case_08_trig.mo ../../references/Case08Trig_res.csv
+Case09ExpLog case_09_exp_log.mo ../../references/Case09ExpLog_res.csv
+Case10Sqrt case_10_sqrt.mo ../../references/Case10Sqrt_res.csv
+Case11Parens case_11_parens.mo ../../references/Case11Parens_res.csv
+Case12Logic case_12_logic.mo ../../references/Case12Logic_res.csv
+Case13IntArith case_13_int_arith.mo ../../references/Case13IntArith_res.csv
+Case14ConstReal case_14_const_real.mo ../../references/Case14ConstReal_res.csv
+Case15MultiState case_15_multi_state.mo ../../references/Case15MultiState_res.csv
+Case16StateAlg case_16_state_alg.mo ../../references/Case16StateAlg_res.csv
+Case17DivPrec case_17_div_prec.mo ../../references/Case17DivPrec_res.csv
+Case18SciNotation case_18_sci_notation.mo ../../references/Case18SciNotation_res.csv
+Case19DeepChain case_19_deep_chain.mo ../../references/Case19DeepChain_res.csv
+Case20Mixed case_20_mixed.mo ../../references/Case20Mixed_res.csv 5e-4 1e-6

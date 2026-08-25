@@ -1,0 +1,14 @@
+// gen_reference.mos — OpenModelica 参考基线批量生成脚本模板。
+// 用法（需 omc ≥ 1.23）：
+//   omc references/gen_reference.mos
+// 或对单个模型使用 tools/regression/fetch_reference.py（推荐，自动裁剪列）。
+
+// 示例：为 cooling.mo 生成参考
+loadFile("examples/models/cooling.mo");
+simulate(Cooling, startTime=0, stopTime=5, numberOfIntervals=500, outputFormat="csv");
+
+// 追加其他用例时按同一模式复制两行：
+// loadFile("examples/models/case_01_decay.mo");
+// simulate(Case01Decay, startTime=0, stopTime=2, numberOfIntervals=100, outputFormat="csv");
+
+exit();

@@ -1,0 +1,24 @@
+# 构建缓存
+build/
+
+# 测试运行时残留（集成测试工作目录）
+*_tmp/
+*.tmp
+
+# Python
+__pycache__/
+.pytest_cache/
+.venv/
+
+# 编辑器/系统
+.vscode/
+.idea/
+.DS_Store
+
+# 编译产物（omc 演示目录中的目标文件与二进制）
+*.o
+example/hello_omc/Hello
+
+# 可再生成的演示产物（生成命令见 example/README.md）
+/example/hello_gen/
+/example/hello_omc/
