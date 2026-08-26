@@ -22,3 +22,10 @@ example/hello_omc/Hello
 # 可再生成的演示产物（生成命令见 example/README.md）
 /example/hello_gen/
 /example/hello_omc/
+
+# hvac 演示的可再生产物（生成命令见 example/README.md）
+/example/hvac_gen/
+/example/hvac_omc/
+
+# 临时转换输出
+/testdir/
