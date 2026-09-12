@@ -9,7 +9,7 @@ namespace {
 // 首期明确不支持的构造关键字（contracts/subset-grammar.md "明确不支持"清单）。
 const std::unordered_set<std::string> &kUnsupportedKeywords() {
   static const std::unordered_set<std::string> kSet = {
-      "package", "import", "algorithm", "when",     "if",
+      "package", "import", "algorithm", "when",
       "connect", "reinit", "record",    "function", "each",
   };
   return kSet;
@@ -346,6 +346,10 @@ ast::EquationSide Parser::parseEquationSide() {
 }
 
 std::optional<ast::Equation> Parser::parseEquation() {
+  // 条件方程形态：if <cond> then ... elseif ... else ... end if;
+  if (check(TokKind::Keyword, "if"))
+    return parseIfEquation();
+
   ast::Equation eq;
   eq.lhs = parseEquationSide();
   if (!eq.lhs.isDer && !eq.lhs.expr) {
@@ -367,6 +371,113 @@ std::optional<ast::Equation> Parser::parseEquation() {
     return std::nullopt;
   }
   return eq;
+}
+
+std::optional<ast::Equation> Parser::parseIfEquation() {
+  if (ifDepth_ >= kMaxIfDepth) {
+    const Token &t = peek();
+    diags_.addError(Location{"", t.line, t.col}, Code::ExprUnsupported,
+                    "if 方程嵌套超过安全深度");
+    synchronizeStatement();
+    return std::nullopt;
+  }
+  ++ifDepth_;
+  struct DepthGuard {
+    int &depth;
+    ~DepthGuard() { --depth; }
+  } guard{ifDepth_};
+
+  ast::Equation eq;
+  eq.isIf = true;
+  eq.ifTok = advance(); // 'if'
+
+  // 分支 0：if <cond> then
+  {
+    auto cond = parseExpression();
+    if (!cond) {
+      synchronizeStatement();
+      return std::nullopt;
+    }
+    if (!expect(TokKind::Keyword, "then", "then")) {
+      synchronizeStatement();
+      return std::nullopt;
+    }
+    ast::IfBranch branch;
+    branch.condition = std::move(cond);
+    while (!atEnd() && !atIfBranchEnd()) {
+      auto sub = parseEquation();
+      if (!sub) {
+        synchronizeStatement();
+        return std::nullopt;
+      }
+      branch.equations.push_back(std::move(*sub));
+    }
+    eq.branches.push_back(std::move(branch));
+  }
+
+  while (!atEnd()) {
+    if (match(TokKind::Keyword, "elseif")) {
+      ast::IfBranch branch;
+      branch.condition = parseExpression();
+      if (!branch.condition) {
+        synchronizeStatement();
+        return std::nullopt;
+      }
+      if (!expect(TokKind::Keyword, "then", "then")) {
+        synchronizeStatement();
+        return std::nullopt;
+      }
+      while (!atEnd() && !atIfBranchEnd()) {
+        auto sub = parseEquation();
+        if (!sub) {
+          synchronizeStatement();
+          return std::nullopt;
+        }
+        branch.equations.push_back(std::move(*sub));
+      }
+      eq.branches.push_back(std::move(branch));
+      continue;
+    }
+    if (match(TokKind::Keyword, "else")) {
+      ast::IfBranch branch; // condition 为空 → else 分支
+      while (!atEnd() && !atIfBranchEnd()) {
+        auto sub = parseEquation();
+        if (!sub) {
+          synchronizeStatement();
+          return std::nullopt;
+        }
+        branch.equations.push_back(std::move(*sub));
+      }
+      eq.branches.push_back(std::move(branch));
+      continue;
+    }
+    break;
+  }
+
+  if (!expect(TokKind::Keyword, "end", "end")) {
+    synchronizeStatement();
+    return std::nullopt;
+  }
+  if (!expect(TokKind::Keyword, "if", "\"if\"")) {
+    synchronizeStatement();
+    return std::nullopt;
+  }
+  match(TokKind::String, "");
+  if (!expect(TokKind::Op, ";", "\";\"")) {
+    synchronizeStatement();
+    return std::nullopt;
+  }
+  return eq;
+}
+
+// 分支方程列表的终止符：elseif / else / end（都不属于正常方程起始）。
+bool Parser::atIfBranchEnd() const {
+  if (atEnd())
+    return true;
+  if (peek().kind != TokKind::Keyword)
+    return false;
+  const std::string &l = peek().lexeme;
+  return l == "elseif" || l == "else" || l == "end";
 }
 
 std::optional<ast::Experiment> Parser::parseExperimentAnnotation() {
@@ -524,6 +635,8 @@ ast::ExprPtr Parser::parseUnary() {
 
 ast::ExprPtr Parser::parsePrimary() {
   const Token &t = peek();
+  if (check(TokKind::Keyword, "if"))
+    return parseIfExpression();
   if (t.kind == TokKind::Real || t.kind == TokKind::Int) {
     Token tok = advance();
     double value = 0.0;
@@ -572,6 +685,36 @@ ast::ExprPtr Parser::parsePrimary() {
   diags_.addError(Location{"", t.line, t.col}, Code::ExprUnsupported,
                   "无法解析的表达式起点 \"" + t.lexeme + "\"");
   return nullptr;
+}
+
+ast::ExprPtr Parser::parseIfExpression() {
+  if (ifDepth_ >= kMaxIfDepth) {
+    const Token &t = peek();
+    diags_.addError(Location{"", t.line, t.col}, Code::ExprUnsupported,
+                    "if 表达式嵌套超过安全深度");
+    return nullptr;
+  }
+  ++ifDepth_;
+  struct DepthGuard {
+    int &depth;
+    ~DepthGuard() { --depth; }
+  } guard{ifDepth_};
+
+  const Token ifTok = advance(); // 'if'
+  auto cond = parseExpression();
+  if (!cond)
+    return nullptr;
+  if (!expect(TokKind::Keyword, "then", "then"))
+    return nullptr;
+  auto thenExpr = parseExpression();
+  if (!thenExpr)
+    return nullptr;
+  if (!expect(TokKind::Keyword, "else", "else"))
+    return nullptr;
+  auto elseExpr = parseExpression();
+  if (!elseExpr)
+    return nullptr;
+  return ast::Expr::if_(ifTok, std::move(cond), std::move(thenExpr), std::move(elseExpr));
 }
 
 } // namespace mcdc

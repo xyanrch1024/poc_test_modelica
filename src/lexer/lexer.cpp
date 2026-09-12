@@ -13,7 +13,8 @@ const std::unordered_set<std::string> &keywords() {
       "Integer",    "Boolean", "start",    "fixed",     "unit",     "annotation",
       "experiment", "true",    "false",    "and",       "or",       "not",
       "der",        "package", "import",   "algorithm", "when",     "if",
-      "connect",    "reinit",  "record",   "function",  "each",
+      "then",       "else",    "elseif",   "connect",   "reinit",   "record",
+      "function",   "each",
   };
   return kKeywords;
 }

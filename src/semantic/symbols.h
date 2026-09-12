@@ -33,4 +33,13 @@ private:
 void analyzeExpressions(const ast::Model &model, const SymbolTable &table,
                         DiagnosticCollector &diags);
 
+// "是否为布尔表达式"的轻量判定（data-model.md §isBooleanExpr）：
+// 布尔字面量、not/and/or、关系比较、布尔标识符、布尔型 if 表达式。
+// 用于 if 条件位置校验（MC0204）。
+bool isBooleanExpr(const ast::Expr &expr, const SymbolTable &table);
+
+// 表达式"类型类"判定：Numeric / Boolean / Unknown（用于 if 分支一致性 MC0205）。
+enum class ExprTypeClass { Numeric, Boolean, Unknown };
+ExprTypeClass typeClassOf(const ast::Expr &expr, const SymbolTable &table);
+
 } // namespace mcdc

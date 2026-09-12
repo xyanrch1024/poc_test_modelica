@@ -195,6 +195,16 @@ std::optional<double> evalConstExpr(const ast::Expr &expr, const ast::Model &mod
     diags.addError(Location{"", expr.token.line, expr.token.col}, Code::ExprUnsupported,
                    "初始化值不支持函数调用");
     return std::nullopt;
+  case ast::ExprKind::If: {
+    // 条件可折叠时取选中分支；非常量条件在初始化位置不可接受。
+    auto c = evalConstExpr(*expr.cond, model, table, visiting, diags);
+    if (!c)
+      return std::nullopt;
+    const ast::Expr *pick = (*c != 0.0) ? expr.thenExpr.get() : expr.elseExpr.get();
+    if (pick == nullptr)
+      return std::nullopt;
+    return evalConstExpr(*pick, model, table, visiting, diags);
+  }
   }
   return std::nullopt;
 }

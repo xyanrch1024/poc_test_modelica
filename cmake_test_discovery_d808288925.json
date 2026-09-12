@@ -14,13 +14,13 @@
       ]
     },
     {
-      "name": "GoldenPlot",
+      "name": "GoldenConditional",
       "tests": 1,
       "testsuite": [
         {
-          "name": "MatchesBaselineByteForByte",
-          "file": "\/home\/wsl-ubuntu-1\/projects\/pocmodelica\/tests\/golden\/test_golden_plot.cpp",
-          "line": 26
+          "name": "GeneratedProjectMatchesBaselineByteForByte",
+          "file": "\/home\/wsl-ubuntu-1\/projects\/pocmodelica\/tests\/golden\/test_golden_conditional.cpp",
+          "line": 41
         }
       ]
     }

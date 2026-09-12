@@ -9,8 +9,6 @@
 
 #include "rk4.hpp"
 #include "csv_writer.hpp"
-#include "plot_types.hpp"
-#include "plot_render.hpp"
 
 struct Vars {
   double x;  // state: x
@@ -38,24 +36,8 @@ static void deriv(const Vars& vin, Vars& d) {
   d.x = 1;
 }
 
-int main(int argc, char** argv) {
+int main() {
   const std::string resultPath = "Hello_result.csv";
-
-  mcruntime::plot::PlotRequest __plotReq;
-  for (int i = 1; i < argc; ++i) {
-    const std::string a = argv[i];
-    if (a == "--plot") __plotReq.enabled = true;
-    else if (a.rfind("--plot-columns=", 0) == 0) {
-      std::string list = a.substr(15);
-      for (std::size_t p = 0; p < list.size();) {
-        const std::size_t c = list.find(',', p);
-        __plotReq.columns.push_back(list.substr(p, c == std::string::npos ? c : c - p));
-        if (c == std::string::npos) break;
-        p = c + 1;
-      }
-    }
-    else if (a.rfind("--plot-output=", 0) == 0) __plotReq.outputPath = a.substr(14);
-  }
 
   try {
     Vars v = make_constants();
@@ -80,15 +62,10 @@ int main(int argc, char** argv) {
       dy[0] = static_cast<double>(dd.x);
     };
 
-    std::vector<double> __pt;
-    std::vector<double> __pv_x;
-
     auto writeRow = [&](double rowTime) {
       Vars s = v;
       compute_algebraic(s);
       csv.writeRow(rowTime, {static_cast<double>(s.x)});
-      __pt.push_back(rowTime);
-      __pv_x.push_back(static_cast<double>(s.x));
     };
 
     writeRow(t);
@@ -98,28 +75,8 @@ int main(int argc, char** argv) {
       writeRow(t);
     }
 
-    if (__plotReq.enabled) {
-      std::vector<mcruntime::plot::TimeSeries> __series;
-      __series.reserve(1);
-      __series.push_back({"x", __pt, __pv_x});
-      if (__plotReq.outputPath.empty()) __plotReq.outputPath = "Hello_result.png";
-      auto __ps = mcruntime::plot::render_and_save("Hello", __series, __plotReq);
-      if (__ps.ok) {
-        std::printf("plot: %s\n", __ps.outputPath.c_str());
-        if (__ps.skippedPoints > 0)
-          std::fprintf(stderr, "[plot] 已跳过 %ld 个非有限数据点\n", __ps.skippedPoints);
-      } else {
-        std::printf("plot: skipped (%s)\n", __ps.skipReason.c_str());
-        if (!__ps.detail.empty())
-          std::fprintf(stderr, "[plot] %s\n", __ps.detail.c_str());
-      }
-    }
     return 0;
   } catch (const std::runtime_error& e) {
-    if (__plotReq.enabled) {
-      std::printf("plot: skipped (simulation diverged)\n");
-      std::fprintf(stderr, "[plot] 放弃绘图：仿真发散\n");
-    }
     std::fprintf(stderr, "%s\n", e.what());
     std::remove(resultPath.c_str());
     return 3;

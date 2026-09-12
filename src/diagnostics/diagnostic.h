@@ -22,6 +22,10 @@ enum class Code : int {
   InitMissingStart = 304,           // MC0304
   ExperimentInvalid = 401,          // MC0401
   UnsupportedConstruct = 501,       // MC0501
+  ExprIfConditionNotBoolean = 204,  // MC0204
+  ExprIfBranchTypeMismatch = 205,   // MC0205
+  EqIfBranchMismatch = 305,         // MC0305
+  EqIfMissingElse = 306,            // MC0306（预留：本期不触发）
   Internal = 9001,                  // MC9001
 };
 

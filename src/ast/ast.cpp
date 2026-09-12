@@ -62,4 +62,14 @@ ExprPtr Expr::der(Token derTok, Token targetTok) {
   return e;
 }
 
+ExprPtr Expr::if_(Token ifTok, ExprPtr cond, ExprPtr thenExpr, ExprPtr elseExpr) {
+  auto e = std::make_unique<Expr>();
+  e->kind = ExprKind::If;
+  e->token = std::move(ifTok);
+  e->cond = std::move(cond);
+  e->thenExpr = std::move(thenExpr);
+  e->elseExpr = std::move(elseExpr);
+  return e;
+}
+
 } // namespace mcdc::ast

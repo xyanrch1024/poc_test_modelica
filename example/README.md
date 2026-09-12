@@ -3,10 +3,10 @@
 `hello.mo` 为最简示例模型。两个产物子目录均为可再生的生成物（不入库）：
 
 ```bash
-# 本项目编译器：转换 → 构建 → 运行（CSV+PNG）
+# 本项目编译器：转换 → 构建 → 运行（CSV）
 ../build/src/modelicac translate hello.mo -o hello_gen
 cmake -S hello_gen -B hello_gen/build && cmake --build hello_gen/build
-cd hello_gen && ./build/Hello --plot
+cd hello_gen && ./build/Hello
 
 # OpenModelica 对照编译
 cp hello.mo hello_omc/ && cd hello_omc && omc sim.mos && ./Hello -r Hello_result.csv
@@ -20,7 +20,7 @@ cp hello.mo hello_omc/ && cd hello_omc && omc sim.mos && ./Hello -r Hello_result
 ```bash
 ../build/src/modelicac translate hvac.mo -o hvac_gen
 cmake -S hvac_gen -B hvac_gen/build && cmake --build hvac_gen/build
-cd hvac_gen && ../build/RoomHeating --plot --plot-columns=TRoom
+cd hvac_gen && ./build/RoomHeating
 ```
 
 ### 与 OpenModelica 的交叉验证结果（omc 1.27.0 / DASSL）
@@ -31,6 +31,22 @@ cd hvac_gen && ../build/RoomHeating --plot --plot-columns=TRoom
 | 终态 TRoom | 24.042°C | 24.042°C |
 
 线性方程对两种求解器均近乎精确；验收容差 ±0.05°C 远宽于实际偏差。
+
+## 条件构造示例
+
+`../examples/models/` 下提供 `if` 各形态的示例：
+
+| 模型 | 覆盖 |
+|------|------|
+| `case_21_cond_expr.mo` | 条件表达式（三元，单一分支切换） |
+| `case_22_cond_const.mo` | 常量条件静态折叠 |
+| `case_23_cond_eq.mo` | 条件方程 + 状态量条件导数 + 嵌套表达式 |
+| `case_24_cond_elseif.mo` | `elseif` 多段链 |
+| `case_25_cond_nested.mo` | 嵌套三元表达式 + 条件导数方程 |
+| `case_26_cond_constif.mo` | 常量条件 if 方程 + 缺 `else`（静态折叠） |
+
+`if` 的求值语义为按 RK4 各阶段离散重采样（无事件精化，切换处局部误差 ≤ h/6），
+详见仓库根 `README.md` 的"条件构造（if）支持"节。
 
 ### 已知经验
 

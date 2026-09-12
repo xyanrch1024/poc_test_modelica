@@ -18,6 +18,8 @@ struct EquationAnalysis {
   std::vector<std::pair<std::string, const ast::Expr *>> stateDefs;
   // 代数量按拓扑序（先算依赖）：name -> rhs 表达式。
   std::vector<std::pair<std::string, const ast::Expr *>> algebraicSteps;
+  // 条件方程归约产物的所有权（stateDefs/algebraicSteps 中的指针可能指向其中）。
+  std::vector<ast::ExprPtr> synthesized;
 };
 
 // 配平（MC0301/MC0302）、代数环检测（MC0303）、状态初始化检查（MC0304）、

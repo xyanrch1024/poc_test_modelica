@@ -31,6 +31,7 @@ private:
 
   std::optional<ast::Component> parseComponent();
   std::optional<ast::Equation> parseEquation();
+  std::optional<ast::Equation> parseIfEquation();
   ast::EquationSide parseEquationSide();
   ast::ExprPtr parseExpression(); // logical_or
   ast::ExprPtr parseLogicalOr();
@@ -41,11 +42,17 @@ private:
   ast::ExprPtr parseMultiplicative();
   ast::ExprPtr parseUnary();
   ast::ExprPtr parsePrimary();
+  ast::ExprPtr parseIfExpression();
+  // 是否处于分支方程列表终止点（elseif/else/end）。
+  bool atIfBranchEnd() const;
   std::optional<ast::Experiment> parseExperimentAnnotation();
 
   std::vector<Token> tokens_;
   size_t pos_ = 0;
   DiagnosticCollector &diags_;
+  // if 构造递归深度护栏（T032）。
+  static constexpr int kMaxIfDepth = 1024;
+  int ifDepth_ = 0;
 };
 
 } // namespace mcdc

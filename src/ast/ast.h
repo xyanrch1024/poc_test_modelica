@@ -12,7 +12,7 @@ namespace mcdc::ast {
 struct Expr;
 using ExprPtr = std::unique_ptr<Expr>;
 
-enum class ExprKind { NumLit, BoolLit, Ident, Unary, Binary, Call, Der };
+enum class ExprKind { NumLit, BoolLit, Ident, Unary, Binary, Call, Der, If };
 
 struct Expr {
   ExprKind kind;
@@ -22,6 +22,9 @@ struct Expr {
   std::string op;            // Unary/Binary 的运算符；Call 的函数名
   ExprPtr lhs;               // Unary/Binary/Call 无此成员时为空
   ExprPtr rhs;               // Binary
+  ExprPtr cond = nullptr;    // If
+  ExprPtr thenExpr = nullptr; // If
+  ExprPtr elseExpr = nullptr; // If
   std::vector<ExprPtr> args; // Call
 
   static ExprPtr num(Token tok, double value);
@@ -31,6 +34,7 @@ struct Expr {
   static ExprPtr binary(Token opTok, std::string op, ExprPtr l, ExprPtr r);
   static ExprPtr call(Token nameTok, std::vector<ExprPtr> arguments);
   static ExprPtr der(Token derTok, Token targetTok);
+  static ExprPtr if_(Token ifTok, ExprPtr cond, ExprPtr thenExpr, ExprPtr elseExpr);
 };
 
 // 方程一侧：要么是普通表达式，要么是顶层 der(Ident)。
@@ -41,8 +45,18 @@ struct EquationSide {
   ExprPtr expr;    // 非 der 时有效
 };
 
+// 条件方程的一个分支：condition 为空表示 else 分支。
+struct Equation;
+struct IfBranch {
+  ExprPtr condition;             // else 分支为空
+  std::vector<Equation> equations;
+};
+
 struct Equation {
-  EquationSide lhs;
+  bool isIf = false;             // 条件方程形态
+  Token ifTok;                   // if 关键字位置（诊断定位）
+  std::vector<IfBranch> branches;
+  EquationSide lhs;              // 普通方程
   EquationSide rhs;
 };
 

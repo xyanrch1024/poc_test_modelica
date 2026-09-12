@@ -49,6 +49,9 @@ TranslateOutcome runTranslate(const std::string &sourceText,
   }
   TranslationPlan plan = buildPlan(*model, *symbols, *analysis, diags);
 
+  // 语义阶段产生的诊断补全文件名（词法/语法阶段已在步骤 1 填充过）。
+  diags.fillMissingFile(displayFileName);
+
   // 统一诊断门禁：任何 error 都阻止产物落盘。
   if (diags.hasErrors()) {
     return outcome;

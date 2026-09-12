@@ -18,10 +18,14 @@ component       = ( "constant" | "parameter" | "Real" | "Integer" | "Boolean" ) 
 attribute       = "(" , attr_item , { "," , attr_item } , ")" ;
 attr_item       = ("start" | "fixed" | "unit") , "=" , (expression | string) ;
 
-equation        = simple_eq ;
+equation        = if_equation | simple_eq ;
 simple_eq       = expr_side , "=" , expr_side , ";" ;
 expr_side       = expression | der_call ;
 der_call        = "der" , "(" , IDENT , ")" ;
+if_equation     = "if" , expression , "then" , { equation } ,
+                  { "elseif" , expression , "then" , { equation } } ,
+                  [ "else" , { equation } ] ,
+                  "end" , "if" , ";" ;
 
 experiment_annotation
                 = "annotation" , "(" , "experiment" , "(" ,
@@ -39,7 +43,10 @@ multiplicative  = unary , { ("*" | "/") , unary } ;
 unary           = [ "+" | "-" ] , primary ;
 primary         = NUMBER | BOOLEAN | IDENT
                 | IDENT , "(" , [ args ] , ")"
-                | "(" , expression , ")" ;
+                | "(" , expression , ")"
+                | if_expression ;
+if_expression   = "if" , expression , "then" , expression ,
+                  "else" , expression ;
 args            = expression , { "," , expression } ;
 
 string          = '"' , { any_char_except_quote } , '"' ;
@@ -57,5 +64,9 @@ BOOLEAN         = "true" | "false" ;
 
 ## 明确不支持（遇到即报错并指出位置）
 
-`package`、`import`、`algorithm` 节、`when/if` 方程、`connect`、数组与向量、
+`package`、`import`、`algorithm` 节、`when` 方程、`connect`、数组与向量、
 `record`、`function` 定义、`each`、`reinit`、离散事件构造。
+
+`if` 构造（条件表达式与条件方程）受首期支持，文法见上；
+其语义约束（分支平衡、布尔条件、步边界离散求值）见 spec 003
+`contracts/if-construct-contract.md`。
