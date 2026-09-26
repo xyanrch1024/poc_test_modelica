@@ -15,14 +15,18 @@ add_library(mcdc_core STATIC
   eqir/schedule.cpp
   eqir/pass_manager.cpp
   eqir/init_lower.cpp
-  codegen/plan.cpp
+  simcode/names.cpp
+  simcode/emit_expr.cpp
+  simcode/create.cpp
   codegen/codegen.cpp
   cli/pipeline.cpp
 )
 target_include_directories(mcdc_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(mcdc_core PUBLIC
   MC_RUNTIME_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/runtime"
+  MC_TEMPLATES_DIR="${CMAKE_SOURCE_DIR}/templates"
 )
+target_link_libraries(mcdc_core PUBLIC inja)
 target_compile_options(mcdc_core PRIVATE -Wall -Wextra -Wpedantic)
 
 add_executable(modelicac cli/main.cpp)

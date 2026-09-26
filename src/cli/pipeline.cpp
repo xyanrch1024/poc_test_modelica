@@ -4,11 +4,11 @@
 #include <optional>
 
 #include "codegen/codegen.h"
-#include "codegen/plan.h"
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 #include "semantic/equations.h"
 #include "semantic/symbols.h"
+#include "simcode/create.h"
 
 namespace mcdc {
 
@@ -42,8 +42,13 @@ TranslateOutcome runTranslate(const std::string &sourceText,
   if (!symbols || !analysis || !analysis->eqModule || !analysis->initModule) {
     return outcome;
   }
-  TranslationPlan plan =
-      buildPlanFromEqModules(*model, *symbols, *analysis->eqModule, *analysis->initModule, diags);
+  // 语义/方程已失败时不要进入 SimCode（避免 emit 对残缺系统抛 logic_error）
+  if (diags.hasErrors()) {
+    return outcome;
+  }
+
+  simcode::SimCode sc = simcode::createSimCode(*model, *symbols, *analysis->eqModule,
+                                               *analysis->initModule, diags);
 
   diags.fillMissingFile(displayFileName);
 
@@ -52,14 +57,14 @@ TranslateOutcome runTranslate(const std::string &sourceText,
   }
 
   std::string genErr;
-  GeneratedFiles files = generateProject(plan, &genErr);
+  GeneratedFiles files = generateProject(sc, &genErr);
   if (files.empty()) {
     diags.addError(Location{displayFileName, 0, 0}, Code::Internal,
                    "生成工程失败: " + genErr);
     return outcome;
   }
   outcome.outputDir =
-      explicitOutputDir != nullptr ? *explicitOutputDir : "./" + plan.modelName + "_gen";
+      explicitOutputDir != nullptr ? *explicitOutputDir : "./" + sc.modelName + "_gen";
   std::string err;
   if (!writeProject(files, outcome.outputDir, &err)) {
     diags.addError(Location{displayFileName, 0, 0}, Code::Internal, "写出生成物失败: " + err);

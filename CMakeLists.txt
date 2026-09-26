@@ -18,6 +18,16 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
+# SimCode → C++ 模板引擎（header-only；嵌入 nlohmann/json）
+set(INJA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(INJA_USE_EMBEDDED_JSON ON CACHE BOOL "" FORCE)
+set(INJA_INSTALL OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+  inja
+  URL https://github.com/pantor/inja/archive/refs/tags/v3.4.0.zip
+)
+FetchContent_MakeAvailable(inja)
+
 enable_testing()
 
 add_subdirectory(src)

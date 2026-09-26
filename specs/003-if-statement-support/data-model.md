@@ -7,7 +7,7 @@
 ## 编译流水线与状态迁移（增量）
 
 ```text
-AST ──analyze──▶ AnalyzedModel ──sort/plan──▶ TranslationPlan ──generate──▶ GeneratedProject
+AST ──analyze──▶ AnalyzedModel ──EqIR/SimCode──▶ GeneratedProject
                     │ 条件类型/分支校验（新增）
                     │ 分支并集依赖建边（新增）
 ```
@@ -50,20 +50,19 @@ AST ──analyze──▶ AnalyzedModel ──sort/plan──▶ TranslationPla
 - 状态量条件分支：`der(x)` 若出现在任一分支 LHS，则 **所有**分支 LHS 均须为 `der(x)`（同一状态）；
   满足后该状态 RHS 为三元表达式 `d.x = c ? e1 : … : en`。
 
-### TranslationPlan（新增字段）
+### SimCode（条件相关）
 | 字段 | 说明 |
 |------|------|
-| `if_exprs` | plan 阶段由条件方程归约出的条件赋值（见下） |
-| 求值顺序 | 条件方程与其 LHS 未知量参与既有拓扑排序，排序后以三元赋值形式进入 steps |
+| 方程 RHS / 状态导数 | 条件方程已归约为 `Expr::If`；`createSimCode` emit 为 `(c ? e1 : e2)` |
+| 求值顺序 | 条件方程与其 LHS 未知量参与 EqIR 调度，再进入 SimCode 分区 |
 
-### 条件方程 → 三元赋值归约（plan D4，semantic→plan 边界）
+### 条件方程 → 三元赋值归约（plan D4，semantic→EqIR 边界）
 - `if c then v = e1; elseif c2 then v = e2; else v = e3; end if;`
   → 普通等式 `v = e1` 的 RHS 替换为 `If(c, e1, If(c2, e2, e3))`；
 - `if c then der(x) = e1; else der(x) = e2; end if;`
   → 状态 RHS 字典项 `x → If(c, e1, e2)`；
-- 归约在 `TranslationPlan` 构建层完成，**codegen 只看见 Expr::If 与普通等式**，
+- 归约在语义/Lower 层完成，**SimCode/模板只看见已 emit 的三元 C++ 与普通赋值**，
   生成产物保持直线赋值结构（无语句级 if/else）。
-
 ### Expr::If 的代码生成（codegen 增量）
 - 数值结果 → 生成 `(/*cond*/ ? e1 : e2)`（右结合嵌套表达 elseif 链）；
 - 布尔结果 → 生成 `(cond ? true : false)`；

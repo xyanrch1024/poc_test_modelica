@@ -5,13 +5,13 @@
 #include <tuple>
 
 #include "ast/ast.h"
-#include "codegen/plan.h"
 #include "diagnostics/diagnostic.h"
 #include "eqir/ir.h"
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 #include "semantic/equations.h"
 #include "semantic/symbols.h"
+#include "simcode/create.h"
 
 namespace {
 
@@ -232,7 +232,7 @@ end M;
   EXPECT_TRUE(hasCode(a.diags, Code::ExperimentInvalid));
 }
 
-TEST(PlanBuild, EvaluatesParameterExpressionsAndMapsIdentifiers) {
+TEST(SimCodeCreate, EvaluatesParameterExpressionsAndMapsIdentifiers) {
   auto a = analyzeSrc(R"(model M
   parameter Real k = 1 + 2 * a;
   parameter Real a = 2;
@@ -241,12 +241,15 @@ equation
   der(switch) = -k * switch;
 )" + kExperiment + "\nend M;\n");
   ASSERT_FALSE(a.diags.hasErrors());
-  auto plan = buildPlan(*a.model, *a.symbols, *a.equations, a.diags);
-  ASSERT_EQ(plan.constantsParams.size(), 2u);
-  EXPECT_EQ(plan.constantsParams[0].initLiteral, "5");
-  EXPECT_EQ(plan.constantsParams[1].initLiteral, "2");
+  ASSERT_TRUE(a.equations->eqModule);
+  ASSERT_TRUE(a.equations->initModule);
+  auto sc = simcode::createSimCode(*a.model, *a.symbols, *a.equations->eqModule,
+                                   *a.equations->initModule, a.diags);
+  ASSERT_EQ(sc.parameters.size(), 2u);
+  EXPECT_EQ(sc.parameters[0].initLiteral, "5");
+  EXPECT_EQ(sc.parameters[1].initLiteral, "2");
   // C++ 关键字冲突 → 后缀 "_"
-  EXPECT_EQ(plan.outputOrder[0].cppName, "switch_");
+  EXPECT_EQ(sc.outputs[0].cppName, "switch_");
 }
 
 // ---- 条件构造语义（spec 003 T007）----

@@ -7,7 +7,7 @@
 
 ```text
 SourceFile ──lex──▶ Token 流 ──parse──▶ AST ──analyze──▶ SymbolTable
-                                                        │
+    │
               ┌─────────────────────────────────────────┘
               ▼
          Continuous EqIR: Lower → Match → Alias → BLT → Tear → Schedule
@@ -16,8 +16,11 @@ SourceFile ──lex──▶ Token 流 ──parse──▶ AST ──analyze�
          Initial InitIR: lowerInitial →（同上 pass）→ init schedule
               │
               ▼
-         TranslationPlan ──generate──▶ GeneratedProject
-              （codegen: initialize(v) 然后 RK4）
+         SimCode（createSimCode：表达式降为 C++ 片段）
+              │
+              ▼
+         templates/cpp/*.inja ──inja──▶ GeneratedProject
+              （initialize(v) 然后 RK4）
 ```
 
 每个阶段只消费上一阶段的不可变产物；任何阶段产生 error 级诊断即终止流水线，
@@ -81,12 +84,16 @@ SourceFile ──lex──▶ Token 流 ──parse──▶ AST ──analyze�
 | `fixed` 默认 | 变量默认 `false`（`start` 仅作 Newton 猜）；`fixed=true` 才是硬约束 |
 | 运行时 | 生成 `initialize(v)`，在 RK4 之前求解；失败 exit 3 |
 
-### TranslationPlan（代码生成输入）
-- states: 有序列表（按源文件声明序，保证确定性 FR-007）
-- algebraic: `Assign` 与 `Solve` 步骤（Solve 生成 `mcruntime::newton` 调用）
-- aliasBinds: 被消除别名在 `compute_algebraic` 末尾同步
-- experiment: 时间网格参数
-- identifiers: 源名 → C++ 名映射（合法标识符直用；保留字加后缀 `_`，保持可溯源 FR-008）
+### SimCode（代码生成输入，对齐 OpenModelica SimCode 职责的子集）
+| 字段 | 说明 |
+|------|------|
+| parameters / states / algebraics / outputs | `SimVar`（源名、C++ 名、类型；声明序，FR-007） |
+| algebraicEquations / odeEquations / initialEquations | `SimEq`：`Assign` 或 `Nonlinear`（tear + 残差 C++ 字符串） |
+| aliasEquations | 别名同步（`apply_aliases` / init 末尾） |
+| initDerLocals / initGuesses | 初始系统 `der(x)` 局部量与 Newton 种子 |
+| simulationSettings | start/stop/steps |
+
+`createSimCode` 在进入模板前完成表达式 emit；`templates/cpp/*.inja`（inja）只拼文件结构。标识符：合法名直用，C++ 保留字加后缀 `_`（FR-008）。
 
 ### GeneratedProject（输出目录）
 ```text
