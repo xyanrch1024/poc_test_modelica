@@ -8,6 +8,8 @@
 #include <stdexcept>
 #include <unordered_map>
 
+#include "eqir/ir.h"
+
 #ifndef MC_RUNTIME_SRC_DIR
 #error "MC_RUNTIME_SRC_DIR 必须由构建系统定义（指向 src/runtime）"
 #endif
@@ -54,8 +56,41 @@ std::string formatReal(double v) {
 }
 
 struct EmitCtx {
-  const TranslationPlan *plan;
+  const TranslationPlan *plan = nullptr;
+  bool initMode = false;
 };
+
+std::string emitRef(const std::string &sourceName, const EmitCtx &ctx) {
+  if (ctx.initMode) {
+    if (eqir::isDerUnknownName(sourceName))
+      return mapInitUnknownToCpp(sourceName);
+    return "v." + mapToCppIdentifier(sourceName);
+  }
+  for (const auto &var : ctx.plan->states) {
+    if (var.sourceName == sourceName)
+      return "v." + var.cppName;
+  }
+  for (const auto &step : ctx.plan->algebraic) {
+    if (step.kind == TranslationPlan::AlgStep::Kind::Assign) {
+      if (step.var.sourceName == sourceName)
+        return "v." + step.var.cppName;
+    } else {
+      for (const auto &tv : step.tearVars) {
+        if (tv.sourceName == sourceName)
+          return "v." + tv.cppName;
+      }
+    }
+  }
+  for (const auto &ab : ctx.plan->aliasBinds) {
+    if (ab.var.sourceName == sourceName)
+      return "v." + ab.var.cppName;
+  }
+  for (const auto &cp : ctx.plan->constantsParams) {
+    if (cp.var.sourceName == sourceName)
+      return "v." + cp.var.cppName;
+  }
+  throw std::logic_error("未映射的标识符: " + sourceName);
+}
 
 std::string emitExpr(const ast::Expr &e, const EmitCtx &ctx) {
   switch (e.kind) {
@@ -65,32 +100,8 @@ std::string emitExpr(const ast::Expr &e, const EmitCtx &ctx) {
     return formatReal(e.numValue);
   case ast::ExprKind::BoolLit:
     return e.boolValue ? "true" : "false";
-  case ast::ExprKind::Ident: {
-    for (const auto &var : ctx.plan->states) {
-      if (var.sourceName == e.token.lexeme)
-        return "v." + var.cppName;
-    }
-    for (const auto &step : ctx.plan->algebraic) {
-      if (step.kind == TranslationPlan::AlgStep::Kind::Assign) {
-        if (step.var.sourceName == e.token.lexeme)
-          return "v." + step.var.cppName;
-      } else {
-        for (const auto &tv : step.tearVars) {
-          if (tv.sourceName == e.token.lexeme)
-            return "v." + tv.cppName;
-        }
-      }
-    }
-    for (const auto &ab : ctx.plan->aliasBinds) {
-      if (ab.var.sourceName == e.token.lexeme)
-        return "v." + ab.var.cppName;
-    }
-    for (const auto &cp : ctx.plan->constantsParams) {
-      if (cp.var.sourceName == e.token.lexeme)
-        return "v." + cp.var.cppName;
-    }
-    throw std::logic_error("未映射的标识符: " + e.token.lexeme);
-  }
+  case ast::ExprKind::Ident:
+    return emitRef(e.token.lexeme, ctx);
   case ast::ExprKind::Unary: {
     const std::string operand = emitExpr(*e.lhs, ctx);
     return e.op == "-" ? "(-" + operand + ")" : "(!" + operand + ")";
@@ -138,6 +149,63 @@ std::string emitExpr(const ast::Expr &e, const EmitCtx &ctx) {
   throw std::logic_error("未知表达式类型");
 }
 
+void emitAlgSteps(std::string *body, const std::vector<TranslationPlan::AlgStep> &steps,
+                  const std::vector<TranslationPlan::AliasBind> &aliases, const EmitCtx &ctx) {
+  for (const auto &step : steps) {
+    if (step.kind == TranslationPlan::AlgStep::Kind::Assign) {
+      *body += "  " + emitRef(step.var.sourceName, ctx) + " = " + emitExpr(*step.rhs, ctx) + ";\n";
+    } else {
+      const size_t n = step.tearVars.size();
+      *body += "  {\n";
+      *body += "    double x[" + std::to_string(n) + "] = {";
+      for (size_t i = 0; i < n; ++i) {
+        if (i)
+          *body += ", ";
+        *body += emitRef(step.tearVars[i].sourceName, ctx);
+      }
+      *body += "};\n";
+      *body += "    auto residual = [&](const double* xx, double* rr) {\n";
+      for (size_t i = 0; i < n; ++i) {
+        *body += "      " + emitRef(step.tearVars[i].sourceName, ctx) + " = xx[" +
+                 std::to_string(i) + "];\n";
+      }
+      for (size_t i = 0; i < n; ++i) {
+        *body += "      rr[" + std::to_string(i) + "] = " + emitExpr(*step.residuals[i], ctx) + ";\n";
+      }
+      *body += "    };\n";
+      *body += "    mcruntime::NewtonOpts opts;\n";
+      *body += "    opts.tol = 1e-10;\n";
+      *body += "    opts.maxIter = 50;\n";
+      *body += "    mcruntime::newton(residual, x, " + std::to_string(n) + ", opts);\n";
+      for (size_t i = 0; i < n; ++i) {
+        *body += "    " + emitRef(step.tearVars[i].sourceName, ctx) + " = x[" +
+                 std::to_string(i) + "];\n";
+      }
+      *body += "  }\n";
+    }
+  }
+  for (const auto &ab : aliases) {
+    const std::string lhs = emitRef(ab.var.sourceName, ctx);
+    if (ab.isConst) {
+      *body += "  " + lhs + " = " + ab.constLiteral + ";\n";
+    } else {
+      std::string rhs;
+      if (ctx.initMode) {
+        if (ab.canonicalCpp.rfind("der_", 0) == 0)
+          rhs = ab.canonicalCpp;
+        else
+          rhs = "v." + ab.canonicalCpp;
+      } else {
+        rhs = "v." + ab.canonicalCpp;
+      }
+      if (ab.scale == -1.0)
+        *body += "  " + lhs + " = -" + rhs + ";\n";
+      else
+        *body += "  " + lhs + " = " + rhs + ";\n";
+    }
+  }
+}
+
 void collectAlgVars(const TranslationPlan &plan, std::vector<PlanVar> *out) {
   std::set<std::string> seen;
   for (const auto &step : plan.algebraic) {
@@ -162,7 +230,6 @@ void collectAlgVars(const TranslationPlan &plan, std::vector<PlanVar> *out) {
 GeneratedFiles generateProject(const TranslationPlan &plan, std::string *err) {
   GeneratedFiles files;
   const std::string &m = plan.modelName;
-  EmitCtx ctx{&plan};
   std::string body;
 
   body += "// Generated by " + std::string(kGeneratorVersion) + " from model " + m + ".\n";
@@ -208,64 +275,50 @@ GeneratedFiles generateProject(const TranslationPlan &plan, std::string *err) {
 
   body += "static void apply_aliases(Vars& v) {\n";
   for (const auto &ab : plan.aliasBinds) {
-    if (ab.isConst) {
+    if (ab.isConst)
       body += "  v." + ab.var.cppName + " = " + ab.constLiteral + ";\n";
-    } else if (ab.scale == -1.0) {
+    else if (ab.scale == -1.0)
       body += "  v." + ab.var.cppName + " = -v." + ab.canonicalCpp + ";\n";
-    } else {
+    else
       body += "  v." + ab.var.cppName + " = v." + ab.canonicalCpp + ";\n";
-    }
   }
   body += "}\n\n";
 
+  EmitCtx contCtx{&plan, false};
   body += "static void compute_algebraic(Vars& v) {\n";
-  for (const auto &step : plan.algebraic) {
-    if (step.kind == TranslationPlan::AlgStep::Kind::Assign) {
-      body += "  v." + step.var.cppName + " = " + emitExpr(*step.rhs, ctx) + ";\n";
-    } else {
-      const size_t n = step.tearVars.size();
-      body += "  {\n";
-      body += "    double x[" + std::to_string(n) + "] = {";
-      for (size_t i = 0; i < n; ++i) {
-        if (i)
-          body += ", ";
-        body += "v." + step.tearVars[i].cppName;
-      }
-      body += "};\n";
-      body += "    auto residual = [&](const double* xx, double* rr) {\n";
-      for (size_t i = 0; i < n; ++i) {
-        body += "      v." + step.tearVars[i].cppName + " = xx[" + std::to_string(i) + "];\n";
-      }
-      for (size_t i = 0; i < n; ++i) {
-        body += "      rr[" + std::to_string(i) + "] = " + emitExpr(*step.residuals[i], ctx) + ";\n";
-      }
-      body += "    };\n";
-      body += "    mcruntime::NewtonOpts opts;\n";
-      body += "    opts.tol = 1e-10;\n";
-      body += "    opts.maxIter = 50;\n";
-      body += "    mcruntime::newton(residual, x, " + std::to_string(n) + ", opts);\n";
-      for (size_t i = 0; i < n; ++i) {
-        body += "    v." + step.tearVars[i].cppName + " = x[" + std::to_string(i) + "];\n";
-      }
-      body += "  }\n";
-    }
-  }
+  emitAlgSteps(&body, plan.algebraic, {}, contCtx);
   body += "  apply_aliases(v);\n";
+  body += "}\n\n";
+  // ---- initialize（初始方程系统）----
+  body += "static void initialize(Vars& v) {\n";
+  EmitCtx initCtx{&plan, true};
+  for (const auto &dn : plan.initDerUnknowns) {
+    body += "  double " + mapInitUnknownToCpp(dn) + " = 0.0;\n";
+  }
+  // 种子
+  for (const auto &[name, guess] : plan.initGuesses) {
+    if (eqir::isDerUnknownName(name))
+      body += "  " + mapInitUnknownToCpp(name) + " = " + formatReal(guess) + ";\n";
+    else
+      body += "  v." + mapToCppIdentifier(name) + " = " + formatReal(guess) + ";\n";
+  }
+  emitAlgSteps(&body, plan.initSteps, plan.initAliasBinds, initCtx);
+  body += "  (void)v;\n";
+  for (const auto &dn : plan.initDerUnknowns)
+    body += "  (void)" + mapInitUnknownToCpp(dn) + ";\n";
   body += "}\n\n";
 
   body += "static void deriv(const Vars& vin, Vars& d) {\n  Vars v = vin;\n"
           "  compute_algebraic(v);\n";
   for (size_t i = 0; i < plan.states.size(); ++i) {
-    body += "  d." + plan.states[i].cppName + " = " + emitExpr(*plan.stateRhs[i], ctx) + ";\n";
+    body += "  d." + plan.states[i].cppName + " = " + emitExpr(*plan.stateRhs[i], contCtx) + ";\n";
   }
   body += "}\n\n";
 
   body += "int main() {\n";
   body += "  const std::string resultPath = \"" + m + "_result.csv\";\n\n";
   body += "  try {\n    Vars v = make_constants();\n";
-  for (size_t i = 0; i < plan.states.size(); ++i) {
-    body += "    v." + plan.states[i].cppName + " = " + plan.stateInitLiterals[i] + ";\n";
-  }
+  body += "    initialize(v);\n";
   body += "    const double t0 = " + formatReal(plan.startTime) + ";\n";
   body += "    const double tEnd = " + formatReal(plan.stopTime) + ";\n";
   body += "    const long steps = " + std::to_string(plan.steps) + "L;\n";

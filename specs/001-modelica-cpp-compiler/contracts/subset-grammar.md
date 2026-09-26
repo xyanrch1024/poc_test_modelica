@@ -7,7 +7,8 @@ file            = model_def , EOF ;
 
 model_def       = "model" , IDENT , [ string_comment ] ,
                   { component } ,
-                  "equation" , { equation } ,
+                  [ "equation" , { equation } ] ,
+                  [ "initial" , "equation" , { equation } ] ,
                   [ experiment_annotation ] ,
                   "end" , IDENT , ";" ;
 

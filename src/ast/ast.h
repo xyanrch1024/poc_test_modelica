@@ -90,6 +90,7 @@ struct Model {
   Token nameTok;
   std::vector<Component> components;
   std::vector<Equation> equations;
+  std::vector<Equation> initialEquations; // initial equation 段
   std::optional<Experiment> experiment;
 };
 

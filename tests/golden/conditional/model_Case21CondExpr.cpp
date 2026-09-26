@@ -41,6 +41,18 @@ static void compute_algebraic(Vars& v) {
   apply_aliases(v);
 }
 
+static void initialize(Vars& v) {
+  double der_x = 0.0;
+  der_x = 0;
+  v.x = 0;
+  v.y = 0;
+  v.x = 0;
+  v.y = ((v.x > 1) ? (v.y0 + (v.slope * (v.x - 1))) : (v.y0 + v.x));
+  der_x = 1;
+  (void)v;
+  (void)der_x;
+}
+
 static void deriv(const Vars& vin, Vars& d) {
   Vars v = vin;
   compute_algebraic(v);
@@ -52,7 +64,7 @@ int main() {
 
   try {
     Vars v = make_constants();
-    v.x = 0;
+    initialize(v);
     const double t0 = 0;
     const double tEnd = 3;
     const long steps = 300L;

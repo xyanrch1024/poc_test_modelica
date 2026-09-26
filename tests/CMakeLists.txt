@@ -8,6 +8,7 @@ add_executable(unit_tests
   unit/test_parser.cpp
   unit/test_semantic.cpp
   unit/test_eqir.cpp
+  unit/test_init.cpp
   unit/test_runtime.cpp
 )
 target_link_libraries(unit_tests PRIVATE mcdc_core GTest::gtest_main)

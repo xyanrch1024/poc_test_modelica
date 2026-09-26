@@ -248,25 +248,13 @@ std::optional<EqModule> lower(const ast::Model &model, const SymbolTable &table,
     }
   }
 
-  // 状态初始化 MC0304
+  // 状态初始化检查移至初始系统（InitIR / MC0308）。
   std::set<std::string> stateNames;
   for (const auto &u : mod.unknowns) {
     if (u.role == UnknownRole::State)
       stateNames.insert(u.name);
   }
-  for (const auto &comp : model.components) {
-    if (comp.kind != ast::Component::Kind::Variable)
-      continue;
-    if (!stateNames.count(comp.nameTok.lexeme))
-      continue;
-    const bool fixedTrue = comp.hasFixed && comp.fixed &&
-                           comp.fixed->kind == ast::ExprKind::BoolLit && comp.fixed->boolValue;
-    if (!comp.start && !fixedTrue) {
-      diags.addError(Location{"", comp.nameTok.line, comp.nameTok.col}, Code::InitMissingStart,
-                     "状态量 \"" + comp.nameTok.lexeme + "\" 缺少 start 初值且未声明 fixed=true");
-      ok = false;
-    }
-  }
+  (void)stateNames;
 
   // 实验注释 MC0401
   if (!model.experiment) {

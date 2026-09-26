@@ -39,11 +39,11 @@ TranslateOutcome runTranslate(const std::string &sourceText,
     analysis = analyzeEquations(*model, *symbols, diags);
   }
 
-  if (!symbols || !analysis || !analysis->eqModule) {
+  if (!symbols || !analysis || !analysis->eqModule || !analysis->initModule) {
     return outcome;
   }
   TranslationPlan plan =
-      buildPlanFromEqModule(*model, *symbols, *analysis->eqModule, diags);
+      buildPlanFromEqModules(*model, *symbols, *analysis->eqModule, *analysis->initModule, diags);
 
   diags.fillMissingFile(displayFileName);
 

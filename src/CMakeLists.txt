@@ -14,6 +14,7 @@ add_library(mcdc_core STATIC
   eqir/tear.cpp
   eqir/schedule.cpp
   eqir/pass_manager.cpp
+  eqir/init_lower.cpp
   codegen/plan.cpp
   codegen/codegen.cpp
   cli/pipeline.cpp

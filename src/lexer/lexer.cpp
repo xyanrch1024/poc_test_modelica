@@ -9,7 +9,7 @@ namespace {
 
 const std::unordered_set<std::string> &keywords() {
   static const std::unordered_set<std::string> kKeywords = {
-      "model",      "end",     "equation", "parameter", "constant", "Real",
+      "model",      "end",     "equation", "initial",  "parameter", "constant", "Real",
       "Integer",    "Boolean", "start",    "fixed",     "unit",     "annotation",
       "experiment", "true",    "false",    "and",       "or",       "not",
       "der",        "package", "import",   "algorithm", "when",     "if",

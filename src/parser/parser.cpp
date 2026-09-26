@@ -121,6 +121,7 @@ std::optional<ast::Model> Parser::parseFile() {
   match(TokKind::String, ""); // 可选描述字符串
 
   bool inEquationSection = false;
+  bool inInitialSection = false;
 
   while (!atEnd()) {
     const Token &t = peek();
@@ -132,7 +133,7 @@ std::optional<ast::Model> Parser::parseFile() {
     }
     if (t.kind == TokKind::Keyword && t.lexeme == "annotation") {
       auto exp = parseExperimentAnnotation();
-      if (exp && !inEquationSection) {
+      if (exp && !inEquationSection && !inInitialSection) {
         // 注解出现在 equation 之前：语法上允许，但语义要求在段尾；此处仍接受。
       }
       if (exp) {
@@ -145,13 +146,25 @@ std::optional<ast::Model> Parser::parseFile() {
       }
       continue;
     }
+    // initial equation（须先于单独的 equation 关键字判断）
+    if (t.kind == TokKind::Keyword && t.lexeme == "initial") {
+      advance();
+      if (!expect(TokKind::Keyword, "equation", "equation")) {
+        synchronizeStatement();
+        continue;
+      }
+      inInitialSection = true;
+      inEquationSection = false;
+      continue;
+    }
     if (t.kind == TokKind::Keyword && t.lexeme == "equation") {
       advance();
       inEquationSection = true;
+      inInitialSection = false;
       continue;
     }
-    if (!inEquationSection && t.kind == TokKind::Keyword && t.lexeme == "der") {
-      // der 出现在方程区之外：非法位置。
+    if (!inEquationSection && !inInitialSection && t.kind == TokKind::Keyword &&
+        t.lexeme == "der") {
       diags_.addError(Location{"", t.line, t.col}, Code::ExprBadDerPlacement,
                       "der(...) 只能出现在方程左侧");
       synchronizeStatement();
@@ -162,9 +175,9 @@ std::optional<ast::Model> Parser::parseFile() {
     }
 
     if (isDeclarationKeyword(t)) {
-      if (inEquationSection) {
+      if (inEquationSection || inInitialSection) {
         diags_.addError(Location{"", t.line, t.col}, Code::StructureMultipleModels,
-                        "equation 段内不允许新的声明");
+                        "方程段内不允许新的声明");
         synchronizeStatement();
         continue;
       }
@@ -174,11 +187,16 @@ std::optional<ast::Model> Parser::parseFile() {
       continue;
     }
 
-    if (inEquationSection && (t.kind == TokKind::Ident || t.kind == TokKind::Keyword ||
-                              t.kind == TokKind::Int || t.kind == TokKind::Real)) {
+    if ((inEquationSection || inInitialSection) &&
+        (t.kind == TokKind::Ident || t.kind == TokKind::Keyword || t.kind == TokKind::Int ||
+         t.kind == TokKind::Real)) {
       auto eq = parseEquation();
-      if (eq)
-        model.equations.push_back(std::move(*eq));
+      if (eq) {
+        if (inInitialSection)
+          model.initialEquations.push_back(std::move(*eq));
+        else
+          model.equations.push_back(std::move(*eq));
+      }
       continue;
     }
 

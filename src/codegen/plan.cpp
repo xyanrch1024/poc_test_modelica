@@ -61,6 +61,12 @@ std::string mapToCppIdentifier(const std::string &name) {
   return name;
 }
 
+std::string mapInitUnknownToCpp(const std::string &name) {
+  if (eqir::isDerUnknownName(name))
+    return "der_" + mapToCppIdentifier(eqir::derStateName(name));
+  return mapToCppIdentifier(name);
+}
+
 std::optional<double> evalConstExpr(const ast::Expr &expr, const ast::Model &model,
                                     const SymbolTable &table, std::set<std::string> *visiting,
                                     DiagnosticCollector &diags) {
@@ -145,24 +151,77 @@ std::optional<double> evalConstExpr(const ast::Expr &expr, const ast::Model &mod
   return std::nullopt;
 }
 
-TranslationPlan buildPlanFromEqModule(const ast::Model &model, const SymbolTable &table,
-                                      const eqir::EqModule &mod, DiagnosticCollector &diags) {
+namespace {
+
+PlanVar makeInitVar(const std::string &name) {
+  return PlanVar{name, mapInitUnknownToCpp(name), ast::Component::DeclType::Real};
+}
+
+void fillStepsFromModule(const eqir::EqModule &mod, const SymbolTable &table,
+                         std::vector<TranslationPlan::AlgStep> *steps,
+                         std::vector<TranslationPlan::AliasBind> *aliases, bool initMode) {
+  for (const auto &step : mod.schedule) {
+    if (step.kind == eqir::StepKind::Assign) {
+      TranslationPlan::AlgStep s;
+      s.kind = TranslationPlan::AlgStep::Kind::Assign;
+      if (initMode)
+        s.var = makeInitVar(step.assign.var);
+      else {
+        const SymbolInfo *info = table.find(step.assign.var);
+        s.var = PlanVar{step.assign.var, mapToCppIdentifier(step.assign.var),
+                        info ? info->type : ast::Component::DeclType::Real};
+      }
+      s.rhs = step.assign.rhs;
+      steps->push_back(std::move(s));
+    } else {
+      TranslationPlan::AlgStep s;
+      s.kind = TranslationPlan::AlgStep::Kind::Solve;
+      for (const auto &name : step.solve.tearVars) {
+        if (initMode)
+          s.tearVars.push_back(makeInitVar(name));
+        else {
+          const SymbolInfo *info = table.find(name);
+          s.tearVars.push_back(PlanVar{name, mapToCppIdentifier(name),
+                                       info ? info->type : ast::Component::DeclType::Real});
+        }
+      }
+      s.residuals = step.solve.residuals;
+      steps->push_back(std::move(s));
+    }
+  }
+  for (const auto &[name, info] : mod.aliases) {
+    TranslationPlan::AliasBind bind;
+    if (initMode)
+      bind.var = makeInitVar(name);
+    else {
+      const SymbolInfo *sym = table.find(name);
+      bind.var = PlanVar{name, mapToCppIdentifier(name),
+                         sym ? sym->type : ast::Component::DeclType::Real};
+    }
+    bind.isConst = info.isConst;
+    bind.scale = info.scale;
+    if (info.isConst) {
+      char buf[64];
+      std::snprintf(buf, sizeof(buf), "%.17g", info.constValue);
+      bind.constLiteral = buf;
+    } else {
+      bind.canonicalCpp = initMode ? mapInitUnknownToCpp(info.canonical)
+                                   : mapToCppIdentifier(info.canonical);
+    }
+    aliases->push_back(std::move(bind));
+  }
+}
+
+} // namespace
+
+TranslationPlan buildPlanFromEqModules(const ast::Model &model, const SymbolTable &table,
+                                       const eqir::EqModule &mod, const eqir::EqModule &init,
+                                       DiagnosticCollector &diags) {
   TranslationPlan plan;
   plan.modelName = model.nameTok.lexeme;
 
   std::set<std::string> statesSet(mod.states.begin(), mod.states.end());
   std::set<std::string> visiting;
-
-  // 活跃代数量：出现在 schedule Assign/Solve 中的
-  std::set<std::string> activeAlg;
-  for (const auto &step : mod.schedule) {
-    if (step.kind == eqir::StepKind::Assign)
-      activeAlg.insert(step.assign.var);
-    else {
-      for (const auto &t : step.solve.tearVars)
-        activeAlg.insert(t);
-    }
-  }
 
   for (const auto &comp : model.components) {
     PlanVar var = makeVar(comp.nameTok.lexeme, comp.type);
@@ -206,42 +265,12 @@ TranslationPlan buildPlanFromEqModule(const ast::Model &model, const SymbolTable
     }
   }
 
-  // 代数 Vars：active + aliases
-  std::set<std::string> algDeclared;
-  for (const auto &step : mod.schedule) {
-    if (step.kind == eqir::StepKind::Assign) {
-      TranslationPlan::AlgStep s;
-      s.kind = TranslationPlan::AlgStep::Kind::Assign;
-      const SymbolInfo *info = table.find(step.assign.var);
-      s.var = makeVar(step.assign.var, info ? info->type : ast::Component::DeclType::Real);
-      s.rhs = step.assign.rhs;
-      plan.algebraic.push_back(std::move(s));
-      algDeclared.insert(step.assign.var);
-    } else {
-      TranslationPlan::AlgStep s;
-      s.kind = TranslationPlan::AlgStep::Kind::Solve;
-      for (const auto &name : step.solve.tearVars) {
-        const SymbolInfo *info = table.find(name);
-        s.tearVars.push_back(makeVar(name, info ? info->type : ast::Component::DeclType::Real));
-        algDeclared.insert(name);
-      }
-      s.residuals = step.solve.residuals;
-      plan.algebraic.push_back(std::move(s));
-    }
-  }
-
-  for (const auto &[name, info] : mod.aliases) {
-    TranslationPlan::AliasBind bind;
-    const SymbolInfo *sym = table.find(name);
-    bind.var = makeVar(name, sym ? sym->type : ast::Component::DeclType::Real);
-    bind.isConst = info.isConst;
-    bind.scale = info.scale;
-    if (info.isConst) {
-      bind.constLiteral = formatReal(info.constValue);
-    } else {
-      bind.canonicalCpp = mapToCppIdentifier(info.canonical);
-    }
-    plan.aliasBinds.push_back(std::move(bind));
+  fillStepsFromModule(mod, table, &plan.algebraic, &plan.aliasBinds, false);
+  fillStepsFromModule(init, table, &plan.initSteps, &plan.initAliasBinds, true);
+  plan.initGuesses = init.guesses;
+  for (const auto &u : init.unknowns) {
+    if (eqir::isDerUnknownName(u.name))
+      plan.initDerUnknowns.push_back(u.name);
   }
 
   plan.startTime = mod.startTime;

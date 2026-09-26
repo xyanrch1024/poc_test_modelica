@@ -10,10 +10,14 @@ SourceFile ──lex──▶ Token 流 ──parse──▶ AST ──analyze�
                                                         │
               ┌─────────────────────────────────────────┘
               ▼
-         EqIR Lower → Match → AliasElim → BLT → Tear → Schedule
-              │  (失败→Diagnostic 列表, exit 2)
+         Continuous EqIR: Lower → Match → Alias → BLT → Tear → Schedule
+              │
               ▼
-         ScheduledSystem / TranslationPlan ──generate──▶ GeneratedProject
+         Initial InitIR: lowerInitial →（同上 pass）→ init schedule
+              │
+              ▼
+         TranslationPlan ──generate──▶ GeneratedProject
+              （codegen: initialize(v) 然后 RK4）
 ```
 
 每个阶段只消费上一阶段的不可变产物；任何阶段产生 error 级诊断即终止流水线，
@@ -66,8 +70,16 @@ SourceFile ──lex──▶ Token 流 ──parse──▶ AST ──analyze�
 | 方程数 == 未知量数（欠定/超定拒绝） | MC0301/MC0302 |
 | 代数环 tearing 失败 / 无法支持的隐式结构 | MC0303 |
 | 代数 SCC 含 der(...)（高指标/隐式 ODE，v1 不支持） | MC0307 |
-| der(x) 的 x 必须被 start 初始化或 fixed=true | MC0304 |
+| 初始系统欠定 / 超定 | MC0308 / MC0309 |
 | 平凡 SCC → 拓扑赋值；非平凡 SCC → 全 tear + Newton 残差 | — |
+
+### 初始方程系统（InitIR，对齐 MLS §8.6 / JModelica）
+| 项 | 说明 |
+|----|------|
+| 未知量 | 全部 Variable + 各状态的 `der(x)`（代数未知量） |
+| 方程来源 | 连续方程 + `fixed=true`→`x=start` + `initial equation` |
+| `fixed` 默认 | 变量默认 `false`（`start` 仅作 Newton 猜）；`fixed=true` 才是硬约束 |
+| 运行时 | 生成 `initialize(v)`，在 RK4 之前求解；失败 exit 3 |
 
 ### TranslationPlan（代码生成输入）
 - states: 有序列表（按源文件声明序，保证确定性 FR-007）

@@ -81,8 +81,12 @@ struct EqModule {
 
   // Schedule 输出
   std::vector<SchedStep> schedule;
-  std::vector<std::string> states; // 声明序
+  std::vector<std::string> states; // 声明序（连续系统）
   std::map<std::string, const ast::Expr *> stateRhs;
+
+  // 初始系统：Newton 种子（未知量名 → 数值）
+  std::map<std::string, double> guesses;
+  bool isInitial = false; // true = 初始方程系统
 
   // 实验设置（Lower 校验后填入）
   double startTime = 0.0;
@@ -90,6 +94,17 @@ struct EqModule {
   double interval = 0.0;
   bool experimentOk = false;
 };
+
+// der(x) 未知量的规范名。
+inline std::string derUnknownName(const std::string &state) { return "der(" + state + ")"; }
+inline bool isDerUnknownName(const std::string &name) {
+  return name.size() > 5 && name.compare(0, 4, "der(") == 0 && name.back() == ')';
+}
+inline std::string derStateName(const std::string &derName) {
+  if (!isDerUnknownName(derName))
+    return {};
+  return derName.substr(4, derName.size() - 5);
+}
 
 const Unknown *findUnknown(const EqModule &m, const std::string &name);
 Unknown *findUnknownMutable(EqModule &m, const std::string &name);

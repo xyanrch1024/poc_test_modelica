@@ -193,13 +193,13 @@ equation
   EXPECT_EQ(a.equations->algebraicSteps[1].first, "u2");
 }
 
-TEST(SemanticEquations, ReportsMissingStateStartMC0304) {
+TEST(SemanticEquations, ReportsMissingStateInitMC0308) {
   const auto a = analyzeSrc(R"(model M
   Real x;
 equation
   der(x) = 0;
 )" + kExperiment + "\nend M;\n");
-  EXPECT_TRUE(hasCode(a.diags, Code::InitMissingStart));
+  EXPECT_TRUE(hasCode(a.diags, Code::InitUnderdetermined));
 }
 
 TEST(SemanticEquations, AcceptsFixedTrueWithoutExplicitStart) {

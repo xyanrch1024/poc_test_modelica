@@ -29,7 +29,7 @@ bool computeBlt(EqModule &mod, DiagnosticCollector &diags) {
     varToEq[*eq.matched] = eq.id;
   }
 
-  // deps[v] = 代数量集合：计算 v 时其 RHS 依赖的其他代数量（含自环）
+  // deps[v] = 残差 incidence 中除 v 外的代数量；若 RHS 引用自身则保留自环。
   std::unordered_map<std::string, std::set<std::string>> deps;
   for (const auto &name : algSet) {
     auto it = varToEq.find(name);
@@ -38,12 +38,16 @@ bool computeBlt(EqModule &mod, DiagnosticCollector &diags) {
     const Equation *eq = findEquation(mod, it->second);
     if (eq == nullptr || !eq->rhs)
       continue;
-    std::set<std::string> used;
-    collectIdents(*eq->rhs, &used);
+    std::set<std::string> rhsVars;
+    collectIdents(*eq->rhs, &rhsVars);
+    std::set<std::string> used = rhsVars;
+    used.insert(eq->preferredUnknown);
     for (const auto &w : used) {
-      if (algSet.count(w))
+      if (w != name && algSet.count(w))
         deps[name].insert(w);
     }
+    if (rhsVars.count(name))
+      deps[name].insert(name); // 自环 u = f(u)
   }
 
   // Tarjan，按声明序启动以保证确定性

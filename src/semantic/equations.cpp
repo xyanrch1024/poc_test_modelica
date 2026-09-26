@@ -10,6 +10,10 @@ std::optional<EquationAnalysis> analyzeEquations(const ast::Model &model, const 
   if (!mod)
     return std::nullopt;
 
+  auto init = eqir::runInitialBackend(model, table, *mod, diags);
+  if (!init)
+    return std::nullopt;
+
   EquationAnalysis analysis;
   analysis.states = mod->states;
   for (const auto &name : mod->states) {
@@ -21,8 +25,8 @@ std::optional<EquationAnalysis> analyzeEquations(const ast::Model &model, const 
     if (step.kind == eqir::StepKind::Assign)
       analysis.algebraicSteps.emplace_back(step.assign.var, step.assign.rhs);
   }
-  // 保留 extras 所有权在 eqModule 内
   analysis.eqModule = std::move(*mod);
+  analysis.initModule = std::move(*init);
   return analysis;
 }
 
