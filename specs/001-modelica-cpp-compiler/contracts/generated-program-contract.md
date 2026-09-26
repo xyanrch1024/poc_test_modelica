@@ -14,10 +14,11 @@
 | 命令行参数 | 无（FR-003）；任何参数被忽略或打印提示后退出 |
 | 时间网格 | `[StartTime, StopTime]`，等分 `round((StopTime-StartTime)/Interval)` 步 |
 | 积分方法 | 固定步长经典 RK4（research R4），逐位确定 |
+| 代数环 | 编译期 tearing；运行期 `mcruntime::newton`（有限差分雅可比，固定 tol/maxIter） |
 | 输出文件 | 当前工作目录下 `<model名>_result.csv` |
 | 输出时机 | 每个网格点（含 t=StartTime 与 t=StopTime）写一行 |
 | 成功退出 | 0，stderr 无输出 |
-| 数值发散 | 检测到非有限值时：stderr 打印含当前时间的提示，删除半成品 CSV 后以退出码 3 终止（spec 边缘用例：发散必须有明确提示） |
+| 数值发散 / Newton 失败 | 检测到非有限值或求解失败时：stderr 打印含原因的提示，删除半成品 CSV 后以退出码 3 终止 |
 
 ## 可溯源要求（FR-008）
 

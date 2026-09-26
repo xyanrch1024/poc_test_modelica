@@ -21,3 +21,4 @@ Case17DivPrec case_17_div_prec.mo ../../references/Case17DivPrec_res.csv
 Case18SciNotation case_18_sci_notation.mo ../../references/Case18SciNotation_res.csv
 Case19DeepChain case_19_deep_chain.mo ../../references/Case19DeepChain_res.csv
 Case20Mixed case_20_mixed.mo ../../references/Case20Mixed_res.csv 5e-4 1e-6
+AlgLoop AlgLoop.mo ../../references/AlgLoop_res.csv

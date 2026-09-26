@@ -5,6 +5,15 @@ add_library(mcdc_core STATIC
   parser/parser.cpp
   semantic/symbols.cpp
   semantic/equations.cpp
+  eqir/ir.cpp
+  eqir/expr_util.cpp
+  eqir/lower.cpp
+  eqir/match.cpp
+  eqir/blt.cpp
+  eqir/alias.cpp
+  eqir/tear.cpp
+  eqir/schedule.cpp
+  eqir/pass_manager.cpp
   codegen/plan.cpp
   codegen/codegen.cpp
   cli/pipeline.cpp

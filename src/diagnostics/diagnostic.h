@@ -26,6 +26,7 @@ enum class Code : int {
   ExprIfBranchTypeMismatch = 205,   // MC0205
   EqIfBranchMismatch = 305,         // MC0305
   EqIfMissingElse = 306,            // MC0306（预留：本期不触发）
+  EqImplicitUnsupported = 307,      // MC0307：含 der 的隐式代数结构等
   Internal = 9001,                  // MC9001
 };
 

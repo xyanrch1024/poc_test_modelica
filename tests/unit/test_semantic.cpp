@@ -7,6 +7,7 @@
 #include "ast/ast.h"
 #include "codegen/plan.h"
 #include "diagnostics/diagnostic.h"
+#include "eqir/ir.h"
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 #include "semantic/equations.h"
@@ -119,7 +120,7 @@ equation
   EXPECT_TRUE(hasCode(a.diags, Code::EqOverdetermined));
 }
 
-TEST(SemanticEquations, ReportsAlgebraicLoopMC0303) {
+TEST(SemanticEquations, AlgebraicLoopIsTornNotRejected) {
   const auto a = analyzeSrc(R"(model M
   Real s(start = 1, fixed = true);
   Real a;
@@ -129,10 +130,20 @@ equation
   a = b + 1;
   b = a * 0.5;
 )" + kExperiment + "\nend M;\n");
-  EXPECT_TRUE(hasCode(a.diags, Code::EqAlgebraicLoop));
+  EXPECT_FALSE(a.diags.hasErrors());
+  ASSERT_TRUE(a.equations.has_value());
+  ASSERT_TRUE(a.equations->eqModule.has_value());
+  bool sawSolve = false;
+  for (const auto &step : a.equations->eqModule->schedule) {
+    if (step.kind == eqir::StepKind::Solve) {
+      sawSolve = true;
+      EXPECT_EQ(step.solve.tearVars.size(), 2u);
+    }
+  }
+  EXPECT_TRUE(sawSolve);
 }
 
-TEST(SemanticEquations, ReportsSelfLoopMC0303) {
+TEST(SemanticEquations, SelfLoopIsTornNotRejected) {
   const auto a = analyzeSrc(R"(model M
   Real s(start = 1, fixed = true);
   Real u;
@@ -140,7 +151,15 @@ equation
   der(s) = u;
   u = u + 1;
 )" + kExperiment + "\nend M;\n");
-  EXPECT_TRUE(hasCode(a.diags, Code::EqAlgebraicLoop));
+  EXPECT_FALSE(a.diags.hasErrors());
+  ASSERT_TRUE(a.equations.has_value());
+  ASSERT_TRUE(a.equations->eqModule.has_value());
+  bool sawSolve = false;
+  for (const auto &step : a.equations->eqModule->schedule) {
+    if (step.kind == eqir::StepKind::Solve)
+      sawSolve = true;
+  }
+  EXPECT_TRUE(sawSolve);
 }
 
 TEST(SemanticEquations, AllowsCoupledStatesWithoutLoop) {

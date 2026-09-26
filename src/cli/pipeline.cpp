@@ -18,12 +18,10 @@ TranslateOutcome runTranslate(const std::string &sourceText,
                               DiagnosticCollector &diags) {
   TranslateOutcome outcome;
 
-  // 1. 词法
   Lexer lexer(sourceText);
   auto tokens = lexer.tokenize(diags);
   diags.fillMissingFile(displayFileName);
 
-  // 2. 解析
   Parser parser(std::move(tokens), diags);
   auto model = parser.parseFile();
   if (!model) {
@@ -31,33 +29,28 @@ TranslateOutcome runTranslate(const std::string &sourceText,
   }
   outcome.modelName = model->nameTok.lexeme;
 
-  // 3. 符号与表达式
   auto symbols = SymbolTable::build(*model, diags);
   if (symbols) {
     analyzeExpressions(*model, *symbols, diags);
   }
 
-  // 4. 方程分析
   std::optional<EquationAnalysis> analysis;
   if (symbols) {
     analysis = analyzeEquations(*model, *symbols, diags);
   }
 
-  // 5. 计划
-  if (!symbols || !analysis) {
+  if (!symbols || !analysis || !analysis->eqModule) {
     return outcome;
   }
-  TranslationPlan plan = buildPlan(*model, *symbols, *analysis, diags);
+  TranslationPlan plan =
+      buildPlanFromEqModule(*model, *symbols, *analysis->eqModule, diags);
 
-  // 语义阶段产生的诊断补全文件名（词法/语法阶段已在步骤 1 填充过）。
   diags.fillMissingFile(displayFileName);
 
-  // 统一诊断门禁：任何 error 都阻止产物落盘。
   if (diags.hasErrors()) {
     return outcome;
   }
 
-  // 6. 生成（纯内存）→ 落盘
   std::string genErr;
   GeneratedFiles files = generateProject(plan, &genErr);
   if (files.empty()) {

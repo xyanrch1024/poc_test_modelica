@@ -17,9 +17,11 @@ struct CliRun {
 };
 
 // 运行 CLI 并捕获 stderr；检查输出目录是否残留。
+// workDir 与 outDir 绑定，避免并行 ctest 竞态。
 CliRun runTranslateExpect(const std::string &source, const std::string &outDir) {
-  const std::string workDir = "cli_err_tmp";
+  const std::string workDir = outDir + "_work";
   cleanDir(workDir);
+  cleanDir(outDir);
   fs::create_directories(workDir);
   const std::string modelPath = workDir + "/input.mo";
   {

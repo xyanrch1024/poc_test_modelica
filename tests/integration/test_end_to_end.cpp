@@ -114,4 +114,36 @@ TEST(EndToEnd, AlgebraicChainAppearsInOutputColumns) {
   EXPECT_EQ(lines[0], "time,s,u,v,z");
 }
 
+TEST(EndToEnd, AlgebraicLoopSolvedByNewton) {
+  // a = b+1, b = 0.5*a → (a,b)=(2,1)；der(s)=a+b=3, s(0)=1 → s(t)=1+3t
+  const std::string workDir = "e2e_algloop_tmp";
+  const auto r = translateBuildRun(std::string(EXAMPLES_DIR) + "/AlgLoop.mo", "AlgLoop",
+                                   workDir, "AlgLoop_result.csv");
+  ASSERT_EQ(r.exitCode, 0) << "代数环模型应可编译运行";
+  ASSERT_TRUE(r.csvExists);
+  const auto lines = splitLines(r.csv);
+  ASSERT_GE(lines.size(), 2u);
+  EXPECT_EQ(lines[0], "time,s,a,b");
+
+  auto parseRow = [](const std::string &line) {
+    std::vector<double> vals;
+    std::stringstream ss(line);
+    std::string cell;
+    while (std::getline(ss, cell, ','))
+      vals.push_back(std::stod(cell));
+    return vals;
+  };
+  const auto first = parseRow(lines[1]);
+  const auto last = parseRow(lines.back());
+  ASSERT_EQ(first.size(), 4u);
+  ASSERT_EQ(last.size(), 4u);
+  EXPECT_NEAR(first[1], 1.0, 1e-6); // s(0)
+  EXPECT_NEAR(first[2], 2.0, 1e-6); // a
+  EXPECT_NEAR(first[3], 1.0, 1e-6); // b
+  EXPECT_NEAR(last[0], 1.0, 1e-9);  // t
+  EXPECT_NEAR(last[1], 4.0, 1e-4);  // s(1)=1+3
+  EXPECT_NEAR(last[2], 2.0, 1e-6);
+  EXPECT_NEAR(last[3], 1.0, 1e-6);
+}
+
 } // namespace

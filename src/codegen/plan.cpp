@@ -10,96 +10,29 @@ namespace {
 
 const std::unordered_set<std::string> &kCppKeywords() {
   static const std::unordered_set<std::string> kSet = {
-      "alignas",
-      "alignof",
-      "and",
-      "and_eq",
-      "asm",
-      "auto",
-      "bitand",
-      "bitor",
-      "bool",
-      "break",
-      "case",
-      "catch",
-      "char",
-      "char8_t",
-      "class",
-      "compl",
-      "concept",
-      "const",
-      "consteval",
-      "constexpr",
-      "constinit",
-      "const_cast",
-      "continue",
-      "co_await",
-      "co_return",
-      "co_yield",
-      "decltype",
-      "default",
-      "delete",
-      "do",
-      "double",
-      "dynamic_cast",
-      "else",
-      "enum",
-      "explicit",
-      "export",
-      "extern",
-      "false",
-      "float",
-      "for",
-      "friend",
-      "goto",
-      "if",
-      "inline",
-      "int",
-      "long",
-      "mutable",
-      "namespace",
-      "new",
-      "noexcept",
-      "not",
-      "not_eq",
-      "nullptr",
-      "operator",
-      "or",
-      "or_eq",
-      "private",
-      "protected",
-      "public",
-      "register",
-      "reinterpret_cast",
-      "requires",
-      "return",
-      "short",
-      "signed",
-      "sizeof",
-      "static",
-      "static_assert",
-      "static_cast",
-      "struct",
-      "switch",
-      "template",
-      "this",
-      "thread_local",
-      "throw",
-      "true",
-      "try",
-      "typedef",
-      "typeid",
-      "typename",
-      "union",
-      "unsigned",
-      "using",
-      "virtual",
-      "void",
-      "volatile",
-      "wchar_t",
-      "while",
-      "xor",
-      "xor_eq",
+      "alignas",      "alignof",   "and",           "and_eq",
+      "asm",          "auto",      "bitand",        "bitor",
+      "bool",         "break",     "case",          "catch",
+      "char",         "char8_t",   "class",         "compl",
+      "concept",      "const",     "consteval",     "constexpr",
+      "constinit",    "const_cast","continue",      "co_await",
+      "co_return",    "co_yield",  "decltype",      "default",
+      "delete",       "do",        "double",        "dynamic_cast",
+      "else",         "enum",      "explicit",      "export",
+      "extern",       "false",     "float",         "for",
+      "friend",       "goto",      "if",            "inline",
+      "int",          "long",      "mutable",       "namespace",
+      "new",          "noexcept",  "not",           "not_eq",
+      "nullptr",      "operator",  "or",            "or_eq",
+      "private",      "protected", "public",        "register",
+      "reinterpret_cast", "requires", "return",     "short",
+      "signed",       "sizeof",    "static",        "static_assert",
+      "static_cast",  "struct",    "switch",        "template",
+      "this",         "thread_local", "throw",      "true",
+      "try",          "typedef",   "typeid",        "typename",
+      "union",        "unsigned",  "using",         "virtual",
+      "void",         "volatile",  "wchar_t",       "while",
+      "xor",          "xor_eq",
   };
   return kSet;
 }
@@ -112,8 +45,12 @@ std::string formatReal(double v) {
 
 std::string literalFromToken(const Token &tok, double value) {
   if (tok.kind == TokKind::Int)
-    return tok.lexeme; // 保留整数字面量原貌
+    return tok.lexeme;
   return formatReal(value);
+}
+
+PlanVar makeVar(const std::string &name, ast::Component::DeclType type) {
+  return PlanVar{name, mapToCppIdentifier(name), type};
 }
 
 } // namespace
@@ -131,7 +68,7 @@ std::optional<double> evalConstExpr(const ast::Expr &expr, const ast::Model &mod
   case ast::ExprKind::NumLit:
     return expr.numValue;
   case ast::ExprKind::BoolLit:
-    return expr.boolValue ? 1.0 : 0.0; // Boolean 参数/常量初始化
+    return expr.boolValue ? 1.0 : 0.0;
   case ast::ExprKind::Der:
     diags.addError(Location{"", expr.token.line, expr.token.col}, Code::ExprUnsupported,
                    "初始化/属性值必须是数值常量表达式");
@@ -196,7 +133,6 @@ std::optional<double> evalConstExpr(const ast::Expr &expr, const ast::Model &mod
                    "初始化值不支持函数调用");
     return std::nullopt;
   case ast::ExprKind::If: {
-    // 条件可折叠时取选中分支；非常量条件在初始化位置不可接受。
     auto c = evalConstExpr(*expr.cond, model, table, visiting, diags);
     if (!c)
       return std::nullopt;
@@ -209,19 +145,27 @@ std::optional<double> evalConstExpr(const ast::Expr &expr, const ast::Model &mod
   return std::nullopt;
 }
 
-TranslationPlan buildPlan(const ast::Model &model, const SymbolTable &table,
-                          const EquationAnalysis &analysis, DiagnosticCollector &diags) {
+TranslationPlan buildPlanFromEqModule(const ast::Model &model, const SymbolTable &table,
+                                      const eqir::EqModule &mod, DiagnosticCollector &diags) {
   TranslationPlan plan;
   plan.modelName = model.nameTok.lexeme;
 
-  // 状态集合，便于快速判定。
-  std::set<std::string> statesSet(analysis.states.begin(), analysis.states.end());
-
-  // 常量求值上下文。
+  std::set<std::string> statesSet(mod.states.begin(), mod.states.end());
   std::set<std::string> visiting;
 
+  // 活跃代数量：出现在 schedule Assign/Solve 中的
+  std::set<std::string> activeAlg;
+  for (const auto &step : mod.schedule) {
+    if (step.kind == eqir::StepKind::Assign)
+      activeAlg.insert(step.assign.var);
+    else {
+      for (const auto &t : step.solve.tearVars)
+        activeAlg.insert(t);
+    }
+  }
+
   for (const auto &comp : model.components) {
-    PlanVar var{comp.nameTok.lexeme, mapToCppIdentifier(comp.nameTok.lexeme), comp.type};
+    PlanVar var = makeVar(comp.nameTok.lexeme, comp.type);
     switch (comp.kind) {
     case ast::Component::Kind::Constant:
     case ast::Component::Kind::Parameter: {
@@ -230,13 +174,111 @@ TranslationPlan buildPlan(const ast::Model &model, const SymbolTable &table,
       if (comp.value) {
         auto value = evalConstExpr(*comp.value, model, table, &visiting, diags);
         if (value) {
-          if (comp.type == ast::Component::DeclType::Boolean) {
+          if (comp.type == ast::Component::DeclType::Boolean)
             cp.initLiteral = (*value != 0.0) ? "true" : "false";
-          } else {
+          else
             cp.initLiteral = literalFromToken(comp.value->token, *value);
-          }
         } else {
-          cp.initLiteral = "0"; // 已有诊断；生成物不会被写出
+          cp.initLiteral = "0";
+        }
+      } else {
+        cp.initLiteral = comp.type == ast::Component::DeclType::Boolean ? "false" : "0";
+      }
+      plan.constantsParams.push_back(std::move(cp));
+      break;
+    }
+    case ast::Component::Kind::Variable:
+      if (statesSet.count(comp.nameTok.lexeme)) {
+        plan.states.push_back(var);
+        double startValue = 0.0;
+        if (comp.start) {
+          auto value = evalConstExpr(*comp.start, model, table, &visiting, diags);
+          if (value)
+            startValue = *value;
+        }
+        plan.stateInitLiterals.push_back(
+            literalFromToken(comp.start ? comp.start->token : Token{}, startValue));
+        auto it = mod.stateRhs.find(comp.nameTok.lexeme);
+        plan.stateRhs.push_back(it != mod.stateRhs.end() ? it->second : nullptr);
+      }
+      plan.outputOrder.push_back(var);
+      break;
+    }
+  }
+
+  // 代数 Vars：active + aliases
+  std::set<std::string> algDeclared;
+  for (const auto &step : mod.schedule) {
+    if (step.kind == eqir::StepKind::Assign) {
+      TranslationPlan::AlgStep s;
+      s.kind = TranslationPlan::AlgStep::Kind::Assign;
+      const SymbolInfo *info = table.find(step.assign.var);
+      s.var = makeVar(step.assign.var, info ? info->type : ast::Component::DeclType::Real);
+      s.rhs = step.assign.rhs;
+      plan.algebraic.push_back(std::move(s));
+      algDeclared.insert(step.assign.var);
+    } else {
+      TranslationPlan::AlgStep s;
+      s.kind = TranslationPlan::AlgStep::Kind::Solve;
+      for (const auto &name : step.solve.tearVars) {
+        const SymbolInfo *info = table.find(name);
+        s.tearVars.push_back(makeVar(name, info ? info->type : ast::Component::DeclType::Real));
+        algDeclared.insert(name);
+      }
+      s.residuals = step.solve.residuals;
+      plan.algebraic.push_back(std::move(s));
+    }
+  }
+
+  for (const auto &[name, info] : mod.aliases) {
+    TranslationPlan::AliasBind bind;
+    const SymbolInfo *sym = table.find(name);
+    bind.var = makeVar(name, sym ? sym->type : ast::Component::DeclType::Real);
+    bind.isConst = info.isConst;
+    bind.scale = info.scale;
+    if (info.isConst) {
+      bind.constLiteral = formatReal(info.constValue);
+    } else {
+      bind.canonicalCpp = mapToCppIdentifier(info.canonical);
+    }
+    plan.aliasBinds.push_back(std::move(bind));
+  }
+
+  plan.startTime = mod.startTime;
+  plan.stopTime = mod.stopTime;
+  plan.interval = mod.interval;
+  const double span = plan.stopTime - plan.startTime;
+  long steps = static_cast<long>(std::llround(span / plan.interval));
+  if (steps < 1)
+    steps = 1;
+  plan.steps = steps;
+  return plan;
+}
+
+TranslationPlan buildPlan(const ast::Model &model, const SymbolTable &table,
+                          const EquationAnalysis &analysis, DiagnosticCollector &diags) {
+  // 兼容旧路径：仅含赋值步骤的 analysis。
+  TranslationPlan plan;
+  plan.modelName = model.nameTok.lexeme;
+  std::set<std::string> statesSet(analysis.states.begin(), analysis.states.end());
+  std::set<std::string> visiting;
+
+  for (const auto &comp : model.components) {
+    PlanVar var = makeVar(comp.nameTok.lexeme, comp.type);
+    switch (comp.kind) {
+    case ast::Component::Kind::Constant:
+    case ast::Component::Kind::Parameter: {
+      TranslationPlan::ConstantParam cp;
+      cp.var = var;
+      if (comp.value) {
+        auto value = evalConstExpr(*comp.value, model, table, &visiting, diags);
+        if (value) {
+          if (comp.type == ast::Component::DeclType::Boolean)
+            cp.initLiteral = (*value != 0.0) ? "true" : "false";
+          else
+            cp.initLiteral = literalFromToken(comp.value->token, *value);
+        } else {
+          cp.initLiteral = "0";
         }
       } else {
         cp.initLiteral = comp.type == ast::Component::DeclType::Boolean ? "false" : "0";
@@ -262,17 +304,16 @@ TranslationPlan buildPlan(const ast::Model &model, const SymbolTable &table,
           }
         }
       }
-      plan.outputOrder.push_back(var); // Variable 类别全部进入输出列
+      plan.outputOrder.push_back(var);
       break;
     }
   }
 
-  // 代数量映射。
   for (const auto &[name, rhs] : analysis.algebraicSteps) {
     const SymbolInfo *info = table.find(name);
     TranslationPlan::AlgStep step;
-    step.var =
-        PlanVar{name, mapToCppIdentifier(name), info ? info->type : ast::Component::DeclType::Real};
+    step.kind = TranslationPlan::AlgStep::Kind::Assign;
+    step.var = makeVar(name, info ? info->type : ast::Component::DeclType::Real);
     step.rhs = rhs;
     plan.algebraic.push_back(std::move(step));
   }
@@ -286,12 +327,10 @@ TranslationPlan buildPlan(const ast::Model &model, const SymbolTable &table,
     plan.interval = model.experiment->interval;
   }
   const double span = plan.stopTime - plan.startTime;
-  const double rawSteps = span / plan.interval;
-  long steps = static_cast<long>(std::llround(rawSteps));
+  long steps = static_cast<long>(std::llround(span / plan.interval));
   if (steps < 1)
     steps = 1;
   plan.steps = steps;
-
   return plan;
 }
 

@@ -9,6 +9,7 @@
 
 #include "rk4.hpp"
 #include "csv_writer.hpp"
+#include "newton.hpp"
 
 struct Vars {
   double y0;  // y0
@@ -32,8 +33,12 @@ static void sync_to_y(const Vars& v, double* y) {
   y[0] = v.x;
 }
 
+static void apply_aliases(Vars& v) {
+}
+
 static void compute_algebraic(Vars& v) {
   v.y = ((v.x > 1) ? (v.y0 + (v.slope * (v.x - 1))) : (v.y0 + v.x));
+  apply_aliases(v);
 }
 
 static void deriv(const Vars& vin, Vars& d) {

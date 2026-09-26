@@ -50,6 +50,7 @@ TEST(GoldenConditional, GeneratedProjectMatchesBaselineByteForByte) {
       "model_Case21CondExpr.cpp",
       "mcruntime/rk4.hpp",
       "mcruntime/csv_writer.hpp",
+      "mcruntime/newton.hpp",
   };
   for (const auto &name : names) {
     const std::string actual = readFile(outDir + "/" + name);

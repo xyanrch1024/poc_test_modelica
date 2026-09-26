@@ -77,26 +77,32 @@ def main(argv: list) -> int:
     ap.add_argument("--binary", default=os.environ.get("MODELICAC_BIN", "./build/src/modelicac"))
     args = ap.parse_args()
 
-    manifest = Path(args.manifest)
+    manifest = Path(args.manifest).resolve()
     cases = parse_cases(manifest)
+    base = manifest.parent
 
     passed = executed = failed = skipped = 0
     with tempfile.TemporaryDirectory() as td:
         work = Path(td)
         for name, model, ref, tol_rel, tol_abs in cases:
+            model_path = Path(model)
+            if not model_path.is_absolute():
+                model_path = (base / model_path).resolve()
             ref_path = Path(ref)
+            if not ref_path.is_absolute():
+                ref_path = (base / ref_path).resolve()
             if not ref_path.exists():
                 print(f"{name}: SKIP(no-reference)")
                 skipped += 1
                 continue
-            ok_run, payload = build_and_run(args.binary, Path(model), work)
+            ok_run, payload = build_and_run(args.binary, model_path, work)
             if not ok_run:
                 print(f"{name}: FAIL {payload}")
                 failed += 1
                 executed += 1
                 continue
             try:
-                result = compare(payload, ref, None, tol_rel, tol_abs)
+                result = compare(payload, str(ref_path), None, tol_rel, tol_abs)
             except (AssertionError, KeyError, ValueError) as exc:
                 print(f"{name}: FAIL {exc}")
                 failed += 1
